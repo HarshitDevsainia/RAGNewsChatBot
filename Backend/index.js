@@ -5,7 +5,8 @@ import fs from "fs";
 import path from "path";
 import { pipeline } from "@xenova/transformers";
 import Groq from "groq-sdk";
-import { fetchArticles } from "./scrapeArticles.js"; // your scraping script
+import { fetchArticles } from "./scrapeArticles.js";
+import { QdrantClient } from "@qdrant/js-client-rest";
 
 dotenv.config();
 
@@ -21,70 +22,62 @@ app.use(
 );
 app.use(express.json({ limit: "10mb" }));
 
-// Initialize Groq
+// ---------------- Groq ----------------
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Data storage
+// ---------------- Sessions ----------------
 const DATA_DIR = process.env.DATA_DIR || "./data";
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-const VECTORS_FILE = path.join(DATA_DIR, "vectors.json");
 const SESSIONS_FILE = path.join(DATA_DIR, "sessions.json");
-
-// Persistent storage
-let VECTOR_STORE = [];
 let SESSIONS = {};
-
-// Load persisted state
 try {
-  if (fs.existsSync(VECTORS_FILE))
-    VECTOR_STORE = JSON.parse(fs.readFileSync(VECTORS_FILE));
-  if (fs.existsSync(SESSIONS_FILE))
+  if (fs.existsSync(SESSIONS_FILE)) {
     SESSIONS = JSON.parse(fs.readFileSync(SESSIONS_FILE));
+  }
 } catch (err) {
-  console.warn(err.message);
+  console.warn("Session load error:", err.message);
 }
 
-// Save state
-function persist() {
-  fs.writeFileSync(VECTORS_FILE, JSON.stringify(VECTOR_STORE, null, 2));
+function persistSessions() {
   fs.writeFileSync(SESSIONS_FILE, JSON.stringify(SESSIONS, null, 2));
 }
 
-// Hugging Face embedder
+// ---------------- Embedder ----------------
 let embedder = null;
+let VECTOR_SIZE = null;
+
 async function initEmbedder() {
   embedder = await pipeline(
     "feature-extraction",
     "avsolatorio/GIST-small-Embedding-v0"
   );
   console.log("Embedder ready!");
+
+  // detect embedding size
+  const sample = await getEmbedding("hello world");
+  VECTOR_SIZE = sample.length;
+  console.log(`Detected VECTOR_SIZE = ${VECTOR_SIZE}`);
 }
 
+// mean pooling
 async function getEmbedding(text) {
-  const result = await embedder(text);
+  const output = await embedder(text); // shape: [1, seq_len, hidden_size]
+  const embeddings = output[0]; // seq_len × hidden_size
+  const dim = embeddings[0].length;
 
-  // Convert nested TypedArray/Float32Array to normal JS array
-  // result[0] is usually the sequence embeddings: [sequence_length][hidden_size]
-  const nested = Array.from(result[0], (row) => Array.from(row));
-
-  // Flatten manually
-  const flat = nested.flat();
-  return flat;
-}
-
-// Utilities
-function cosineSimilarity(a, b) {
-  let dot = 0,
-    na = 0,
-    nb = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
+  const avg = new Array(dim).fill(0);
+  for (let i = 0; i < embeddings.length; i++) {
+    for (let j = 0; j < dim; j++) {
+      avg[j] += embeddings[i][j];
+    }
   }
-  return na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb);
+  for (let j = 0; j < dim; j++) {
+    avg[j] /= embeddings.length;
+  }
+  return avg;
 }
 
+// ---------------- Text utils ----------------
 function chunkText(text, maxChars = 1000) {
   const sentences = text.match(/[^.!?]+[.!?]?/g) || [text];
   const chunks = [];
@@ -93,68 +86,130 @@ function chunkText(text, maxChars = 1000) {
     if ((buffer + s).length > maxChars) {
       if (buffer) chunks.push(buffer.trim());
       if (s.length > maxChars) {
-        for (let i = 0; i < s.length; i += maxChars)
+        for (let i = 0; i < s.length; i += maxChars) {
           chunks.push(s.slice(i, i + maxChars).trim());
+        }
         buffer = "";
-      } else buffer = s;
-    } else buffer += s;
+      } else {
+        buffer = s;
+      }
+    } else {
+      buffer += s;
+    }
   }
   if (buffer) chunks.push(buffer.trim());
   return chunks;
 }
 
-// Ingest JSON articles automatically
+// ---------------- Qdrant ----------------
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+  checkCompatibility: false,
+});
+
+const COLLECTION_NAME = "news_articles";
+
+async function initQdrant() {
+  try {
+    const collections = await qdrant.getCollections();
+    if (!collections.collections.find((c) => c.name === COLLECTION_NAME)) {
+      console.log(
+        `Creating qdrant collection '${COLLECTION_NAME}' (size=${VECTOR_SIZE})...`
+      );
+      await qdrant.createCollection(COLLECTION_NAME, {
+        vectors: {
+          size: VECTOR_SIZE,
+          distance: "Cosine",
+        },
+      });
+      console.log(`Qdrant collection '${COLLECTION_NAME}' created`);
+    } else {
+      console.log(`Qdrant collection '${COLLECTION_NAME}' already exists`);
+    }
+  } catch (err) {
+    console.error("Failed to initialize Qdrant:", err);
+    throw err;
+  }
+}
+
 async function ingestFromFile(filePath) {
   if (!fs.existsSync(filePath)) return console.log("No articles file found");
   const data = JSON.parse(fs.readFileSync(filePath));
   const articles = data.articles || [];
-  console.log(`Ingesting ${articles.length} articles...`);
+  console.log(`Ingesting ${articles.length} articles to Qdrant...`);
 
   for (const art of articles) {
-    const id =
-      art.id || `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = art.id || crypto.randomUUID(); // ✅ always valid UUID
     const title = art.title || "(no title)";
     const chunks = chunkText(art.content || "");
+
+    const points = [];
     for (let i = 0; i < chunks.length; i++) {
       const textForEmbedding = `${title}\n\n${chunks[i]}`;
-      const vector = await getEmbedding(textForEmbedding);
-      VECTOR_STORE.push({
-        id: `${id}::${i}`,
-        sourceId: id,
-        title,
-        url: art.url || null,
-        text: chunks[i],
-        embedding: vector,
-        createdAt: new Date().toISOString(),
+
+      // ✅ ensure vector is correct shape
+      const vectorRaw = await getEmbedding(textForEmbedding);
+
+      // Handle different possible formats
+      let vector;
+      if (Array.isArray(vectorRaw)) {
+        if (Array.isArray(vectorRaw[0])) {
+          vector = vectorRaw[0]; // case 2
+        } else {
+          vector = vectorRaw; // case 3
+        }
+      } else if (vectorRaw.embedding) {
+        vector = vectorRaw.embedding; // case 1
+      } else {
+        throw new Error(
+          "⚠️ Unknown embedding format: " + JSON.stringify(vectorRaw)
+        );
+      }
+
+      if (vector.length !== VECTOR_SIZE) {
+        console.error(
+          `⚠️ Skipping: expected ${VECTOR_SIZE}, got ${vector.length}`
+        );
+        continue;
+      }
+
+      points.push({
+        id: crypto.randomUUID(), // ✅ avoid "::" problem
+        vector,
+        payload: { title, url: art.url || null, text: chunks[i] },
       });
     }
+
+    if (points.length > 0) {
+      await qdrant.upsert(COLLECTION_NAME, { points });
+    }
   }
-  persist();
-  console.log("Ingestion done, vectors count:", VECTOR_STORE.length);
+  console.log("Ingestion done!");
 }
 
-// Session helpers
+// ---------------- Sessions ----------------
 function getOrCreateSession(sessionId) {
-  if (sessionId && SESSIONS[sessionId])
+  if (sessionId && SESSIONS[sessionId]) {
     return { sessionId, session: SESSIONS[sessionId] };
+  }
   const id =
     sessionId ||
     `sess_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   SESSIONS[id] = { history: [], createdAt: new Date().toISOString() };
-  persist();
+  persistSessions();
   return { sessionId: id, session: SESSIONS[id] };
 }
 
-// Chat endpoint (RAG)
+// ---------------- Chat API ----------------
 app.post("/chat", async (req, res) => {
   try {
     const { sessionId: incomingSessionId, message, topK = 4 } = req.body;
-    console.log(req.body);
-
-    if (!message || typeof message !== "string")
+    if (!message || typeof message !== "string") {
       return res
         .status(400)
         .json({ success: false, message: "message required" });
+    }
 
     const { sessionId, session } = getOrCreateSession(incomingSessionId);
     session.history.push({
@@ -164,45 +219,30 @@ app.post("/chat", async (req, res) => {
     });
 
     const qEmb = await getEmbedding(message);
-    const sims = VECTOR_STORE.map((doc) => ({
-      doc,
-      score: cosineSimilarity(qEmb, doc.embedding),
-    }));
-    sims.sort((a, b) => b.score - a.score);
-    const top = sims.slice(0, topK).filter((s) => s.score > 0);
 
-    const sourceMap = {};
-    let sourceCounter = 1;
-    let sourcesText = "";
-
-    top.forEach((s) => {
-      const articleId = s.doc.sourceId;
-      if (!sourceMap[articleId]) {
-        sourceMap[articleId] = sourceCounter++;
-        sourcesText += `Source ${sourceMap[articleId]} - ${s.doc.title}\n`;
-      }
-      sourcesText += `${s.doc.text}\n---\n`;
+    const searchResult = await qdrant.search(COLLECTION_NAME, {
+      vector: qEmb,
+      limit: topK,
     });
 
-    const systemMessage = {
-      role: "system",
-      content:
-        "You are a helpful assistant answering using the news sources. Cite as [Source 1], etc.",
-    };
-    const recentHistory = session.history
-      .slice(-10)
-      .map((h) => ({
+    let sourcesText = "";
+    searchResult.forEach((r, idx) => {
+      sourcesText += `Source ${idx + 1} - ${r.payload.title}\n${
+        r.payload.text
+      }\n---\n`;
+    });
+
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are a helpful assistant answering using the news sources. Cite as [Source 1], etc.",
+      },
+      { role: "system", content: `Retrieved context:\n${sourcesText}` },
+      ...session.history.slice(-10).map((h) => ({
         role: h.from === "user" ? "user" : "assistant",
         content: h.text,
-      }));
-    const retrievedContextMessage = {
-      role: "system",
-      content: `Retrieved context:\n${sourcesText}`,
-    };
-    const messages = [
-      systemMessage,
-      retrievedContextMessage,
-      ...recentHistory,
+      })),
       { role: "user", content: message },
     ];
 
@@ -219,34 +259,44 @@ app.post("/chat", async (req, res) => {
       text: answer,
       at: new Date().toISOString(),
     });
-    persist();
+    persistSessions();
 
-    return res.json({
+    res.json({
       success: true,
       sessionId,
       answer,
-      retrieved: top.map((t) => ({
-        id: t.doc.id,
-        title: t.doc.title,
-        score: t.score,
+      retrieved: searchResult.map((r) => ({
+        id: r.id,
+        title: r.payload.title,
+        score: r.score,
       })),
     });
   } catch (err) {
     console.error(err);
-    console.log(err);
-    return res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// Health check
-app.get("/", (req, res) =>
-  res.json({ status: "ok", VECTOR_STORE_SIZE: VECTOR_STORE.length })
-);
+// ---------------- Health Check ----------------
+app.get("/", async (req, res) => {
+  try {
+    const count = await qdrant.count(COLLECTION_NAME);
+    res.json({ status: "ok", VECTOR_STORE_SIZE: count.count });
+  } catch (err) {
+    res.json({ status: "error", message: err.message });
+  }
+});
 
-// Start server with initialization
+// ---------------- Startup ----------------
 (async () => {
-  await initEmbedder(); // init Hugging Face embedder
-  await fetchArticles(); // scrape articles
-  await ingestFromFile(path.join(DATA_DIR, "articles.json")); // ingest
-  app.listen(PORT, () => console.log(`RAG backend running on port ${PORT}`));
+  try {
+    await initEmbedder();
+    await initQdrant();
+    await fetchArticles();
+    await ingestFromFile(path.join(DATA_DIR, "articles.json"));
+    app.listen(PORT, () => console.log(`RAG backend running on port ${PORT}`));
+  } catch (err) {
+    console.error("Startup failed:", err);
+    process.exit(1);
+  }
 })();
