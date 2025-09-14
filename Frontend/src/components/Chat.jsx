@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Send, Bot, User, RefreshCcw } from "lucide-react";
+import { Send, Bot, User, RefreshCcw, Settings } from "lucide-react";
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);
@@ -10,7 +10,7 @@ export default function Chat() {
   const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -61,48 +61,57 @@ export default function Chat() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-gradient-to-br from-gray-100 via-gray-50 to-gray-200 rounded-[2rem] shadow-2xl flex flex-col h-[90vh] overflow-hidden border border-gray-300/30">
-      {/* Header */}
-      <div className="sticky top-0 z-10 p-5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white font-semibold text-lg sm:text-xl flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <Bot className="w-7 h-7 drop-shadow-lg" />
+    <div className="w-full h-screen flex bg-gray-100">
+      {/* Left Sidebar */}
+      <div className="w-64 bg-gray-900 text-white flex flex-col">
+        <div className="p-5 text-lg font-bold border-b border-gray-700 flex items-center gap-2">
+          <Bot className="w-6 h-6" />
           AI News Assistant
         </div>
-        <button
-          onClick={resetChat}
-          className="flex !text-[0.9rem] items-center gap-2 bg-white/20 hover:bg-white/40 text-white px-4 py-1 rounded-full font-medium shadow-md transition"
-        >
-          <RefreshCcw className="w-4 h-4" />
-          Reset Chat
-        </button>
+        <div className="flex-1 p-4 overflow-y-auto space-y-3">
+          {/* Example: recent chats or menu */}
+          <button
+            onClick={resetChat}
+            className="w-full flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition"
+          >
+            <RefreshCcw className="w-4 h-4" /> New Chat
+          </button>
+        </div>
+        <div className="p-4 border-t border-gray-700 flex items-center justify-center text-gray-400 text-sm italic">
+          Developed by{" "}
+          <span className="font-semibold text-white ml-1">Harshit Soni</span>
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gradient-to-b from-gray-50/80 to-gray-100/90 backdrop-blur-sm flex flex-col">
-        {messages.length === 0 && !loading ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex-1 flex flex-col items-center justify-center text-center text-gray-500"
+      {/* Right Chat Panel */}
+      <div className="flex-1 flex flex-col">
+        {/* Chat Header */}
+        <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center shadow-sm">
+          <div className="font-semibold text-lg">Chat</div>
+          <button
+            onClick={resetChat}
+            className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-200 hover:bg-gray-300 transition"
           >
-            <div className="w-16 h-16 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg mb-4">
-              <Bot className="w-8 h-8" />
+            <RefreshCcw className="w-4 h-4" /> Reset
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50">
+          {messages.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center text-gray-500 mt-20">
+              <div className="w-16 h-16 flex items-center justify-center rounded-full bg-indigo-500 text-white mb-4">
+                <Bot className="w-8 h-8" />
+              </div>
+              <h2 className="font-semibold text-lg">Hello 👋</h2>
+              <p className="mt-2 text-center text-gray-600">
+                Ask about the latest news in technology, finance, sports, or
+                world events.
+              </p>
             </div>
-            <h2 className="text-lg font-semibold text-gray-700">Hello 👋</h2>
-            <p className="mt-2 max-w-sm text-sm text-gray-500">
-              I’m your{" "}
-              <span className="font-medium text-indigo-600">
-                AI News Assistant
-              </span>
-              . Ask me about the latest updates in technology, finance, sports,
-              or world events.
-            </p>
-            <div className="mt-4 text-sm text-gray-400 italic">
-              Try: “What’s trending in tech today?”
-            </div>
-          </motion.div>
-        ) : (
-          messages.map((msg, i) => (
+          )}
+
+          {messages.map((msg, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, scale: 0.95 }}
@@ -113,81 +122,80 @@ export default function Chat() {
               }`}
             >
               {msg.from === "ai" && (
-                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md">
+                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-500 text-white">
                   <Bot className="w-5 h-5" />
                 </div>
               )}
               <div
-                className={`px-5 py-3 text-[15px] leading-relaxed max-w-[70%] rounded-2xl shadow-md backdrop-blur-md ${
+                className={`px-5 py-3 max-w-[70%] rounded-2xl ${
                   msg.from === "user"
-                    ? "bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-700 text-white rounded-br-none"
-                    : "bg-white/80 text-gray-800 border border-gray-200 rounded-bl-none"
+                    ? "bg-indigo-600 text-white rounded-br-none"
+                    : "bg-white border border-gray-200 text-gray-800 rounded-bl-none"
                 }`}
               >
                 {msg.text}
               </div>
               {msg.from === "user" && (
-                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md">
+                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 text-white">
                   <User className="w-5 h-5" />
                 </div>
               )}
             </motion.div>
-          ))
-        )}
+          ))}
 
-        {/* Typing Indicator */}
-        {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex items-center gap-2 justify-start"
-          >
-            <div className="w-8 h-8 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md">
-              <Bot className="w-5 h-5" />
-            </div>
-            <div className="px-5 py-3 bg-white/90 border rounded-2xl rounded-bl-none shadow text-gray-600 flex gap-2 backdrop-blur-md">
-              <motion.span
-                className="w-2 h-2 bg-gray-400 rounded-full"
-                animate={{ y: [0, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 0.6 }}
-              />
-              <motion.span
-                className="w-2 h-2 bg-gray-400 rounded-full"
-                animate={{ y: [0, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }}
-              />
-              <motion.span
-                className="w-2 h-2 bg-gray-400 rounded-full"
-                animate={{ y: [0, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }}
-              />
-            </div>
-          </motion.div>
-        )}
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-2 justify-start"
+            >
+              <div className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-500 text-white">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div className="px-5 py-3 bg-white border rounded-2xl rounded-bl-none flex gap-2 text-gray-600">
+                <motion.span
+                  className="w-2 h-2 bg-gray-400 rounded-full"
+                  animate={{ y: [0, -4, 0] }}
+                  transition={{ repeat: Infinity, duration: 0.6 }}
+                />
+                <motion.span
+                  className="w-2 h-2 bg-gray-400 rounded-full"
+                  animate={{ y: [0, -4, 0] }}
+                  transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }}
+                />
+                <motion.span
+                  className="w-2 h-2 bg-gray-400 rounded-full"
+                  animate={{ y: [0, -4, 0] }}
+                  transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }}
+                />
+              </div>
+            </motion.div>
+          )}
 
-        <div ref={messagesEndRef} />
-      </div>
+          <div ref={messagesEndRef} />
+        </div>
 
-      {/* Input Box */}
-      <form
-        onSubmit={sendMessage}
-        className="sticky bottom-0 p-4 bg-gradient-to-r from-white/70 to-gray-50/70 backdrop-blur-md border-t flex items-center gap-3"
-      >
-        <input
-          type="text"
-          className="flex-1 px-5 py-3 rounded-2xl border border-gray-300/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/60 backdrop-blur-md shadow-sm text-[15px]"
-          placeholder="Ask about recent news..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="p-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl text-white shadow-md hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center"
+        {/* Input Box */}
+        <form
+          onSubmit={sendMessage}
+          className="p-4 bg-white border-t border-gray-200 flex items-center gap-3"
         >
-          <Send className="w-5 h-5" />
-        </button>
-      </form>
+          <input
+            type="text"
+            placeholder="Ask about recent news..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="flex-1 px-4 py-3 rounded-2xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-3 bg-indigo-600 text-white rounded-2xl hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center"
+          >
+            <Send className="w-5 h-5" />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

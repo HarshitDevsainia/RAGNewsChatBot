@@ -1,12 +1,43 @@
-# React + Vite
+# 📰 RAG News Chatbot – React Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, interactive AI-powered news chatbot that provides real-time answers to user queries about **technology, finance, sports, and world events**. Built with **React**, **Tailwind CSS**, and **Framer Motion** for a smooth, responsive, and visually appealing chat experience.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🌟 Features
 
-## Expanding the ESLint configuration
+- Real-time chat with AI assistant.
+- Maintains conversation context using session IDs stored in `localStorage`.
+- Auto-scroll to show the latest message.
+- Smooth animations with **Framer Motion** for messages and UI elements.
+- Typing indicator while AI generates responses.
+- Reset chat functionality to start a new conversation.
+- Fully responsive design with modern, gradient-based UI.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 🛠 Tech Stack
+
+| Technology     | Purpose                                               |
+| ------------- | ----------------------------------------------------- |
+| React          | Frontend framework for building interactive UI components |
+| Tailwind CSS   | Utility-first CSS framework for styling              |
+| Framer Motion  | Smooth animations and transitions                     |
+| Axios          | Handles API requests to the backend                  |
+| Lucide React   | Icons for AI, user, and interface elements          |
+| LocalStorage   | Stores session ID for persistent conversation context |
+
+---
+
+## ⚡ How it Works
+
+1. User types a message and presses **Enter** or clicks the **Send** button.
+2. Frontend sends the message along with the current session ID to the backend `/chat` API.
+3. Backend returns an AI-generated response along with an updated session ID.
+4. Chat messages are displayed with proper styling:
+   - **User messages**: Gradient background, right-aligned, shadowed for a premium feel.
+   - **AI messages**: White/gray background, left-aligned with bot icon.
+5. Typing indicator shows while AI is generating a response.
+6. Users can reset the chat, clearing messages and session data.
+
+---
