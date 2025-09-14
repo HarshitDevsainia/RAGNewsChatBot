@@ -10,9 +10,9 @@ The project is divided into two main parts:
 
 ## 🚀 Project Structure
 
-├── frontend # React app (chat interface)
-├── backend # Node.js API (AI + database logic)
-└── README.md
+-> frontend # Vite React app (chat interface)
+-> backend # Node.js API (AI + database logic)
+-> README.md
 
 
 ---
@@ -24,7 +24,7 @@ The project is divided into two main parts:
 ```bash
 
 git clone https://github.com/HarshitDevsainia/RGANewsChatBot.git
-cd RGANewsChatBot
+cd RAGNewsChatBot
 
 2. Backend Setup
 
