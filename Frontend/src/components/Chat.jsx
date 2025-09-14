@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Send, Bot, User } from "lucide-react";
+import { Send, Bot, User, RefreshCcw } from "lucide-react";
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);
@@ -9,6 +9,21 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  // Load session from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("chatSessionId");
+    if (saved) setSessionId(saved);
+  }, []);
+
+  useEffect(() => {
+    if (sessionId) localStorage.setItem("chatSessionId", sessionId);
+  }, [sessionId]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -39,17 +54,27 @@ export default function Chat() {
     }
   };
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  const resetChat = () => {
+    setMessages([]);
+    setSessionId(null);
+    localStorage.removeItem("chatSessionId");
+  };
 
   return (
     <div className="w-full max-w-2xl mx-auto bg-gradient-to-br from-gray-100 via-gray-50 to-gray-200 rounded-[2rem] shadow-2xl flex flex-col h-[90vh] overflow-hidden border border-gray-300/30">
       {/* Header */}
-      <div className="sticky top-0 z-10 p-5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white font-semibold text-lg sm:text-xl flex items-center gap-3 shadow-lg">
-        <Bot className="w-7 h-7 drop-shadow-lg" />
-        AI News Assistant
+      <div className="sticky top-0 z-10 p-5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white font-semibold text-lg sm:text-xl flex items-center justify-between shadow-lg">
+        <div className="flex items-center gap-3">
+          <Bot className="w-7 h-7 drop-shadow-lg" />
+          AI News Assistant
+        </div>
+        <button
+          onClick={resetChat}
+          className="flex !text-[0.9rem] items-center gap-2 bg-white/20 hover:bg-white/40 text-white px-4 py-1 rounded-full font-medium shadow-md transition"
+        >
+          <RefreshCcw className="w-4 h-4" />
+          Reset Chat
+        </button>
       </div>
 
       {/* Messages */}
