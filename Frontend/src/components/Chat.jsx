@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Send, Bot, User, RefreshCcw, Settings } from "lucide-react";
+import { Send, Bot, User, RefreshCcw, Menu } from "lucide-react";
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Auto-scroll
@@ -61,15 +62,30 @@ export default function Chat() {
   };
 
   return (
-    <div className="w-full h-screen flex bg-gray-100">
-      {/* Left Sidebar */}
-      <div className="w-64 bg-gray-900 text-white flex flex-col">
+    <div className="w-full h-screen flex flex-col md:flex-row bg-gray-100">
+      {/* Mobile Header */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-gray-900 text-white">
+        <div className="font-bold text-lg flex items-center gap-2">
+          <Bot className="w-6 h-6" /> AI News Assistant
+        </div>
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="p-2 rounded-md hover:bg-gray-700"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Sidebar */}
+      <div
+        className={`fixed md:static top-0 left-0 h-full w-80 bg-gray-900 text-white flex flex-col z-50 transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+      >
         <div className="p-5 text-lg font-bold border-b border-gray-700 flex items-center gap-2">
           <Bot className="w-6 h-6" />
           AI News Assistant
         </div>
         <div className="flex-1 p-4 overflow-y-auto space-y-3">
-          {/* Example: recent chats or menu */}
           <button
             onClick={resetChat}
             className="w-full flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition"
@@ -83,8 +99,16 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Right Chat Panel */}
-      <div className="flex-1 flex flex-col">
+      {/* Overlay for mobile sidebar */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black bg-opacity-30 md:hidden z-40"
+        ></div>
+      )}
+
+      {/* Chat Panel */}
+<div className="w-full h-screen flex flex-col bg-gray-100">
         {/* Chat Header */}
         <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center shadow-sm">
           <div className="font-semibold text-lg">Chat</div>
