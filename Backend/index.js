@@ -15,12 +15,17 @@ const PORT = process.env.PORT || 4000;
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173", 
+      "https://rganewschatbot-website.onrender.com"
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   })
 );
+
 app.use(express.json({ limit: "10mb" }));
+
 
 // ---------------- Groq ----------------
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
