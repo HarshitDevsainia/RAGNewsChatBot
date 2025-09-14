@@ -20,7 +20,7 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:4000/chat", {
+      const res = await axios.post("https://rganewschatbot.onrender.com/chat", {
         sessionId,
         message: text,
       });
